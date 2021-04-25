@@ -2,6 +2,8 @@
 
 void print_book_list_page();
 
+void print_book_info();
+
 void print_filters();
 
 void books_page_down();

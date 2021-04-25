@@ -14,7 +14,8 @@ WINDOW* win_book_list_border,
         * win_book_info_border,
         * win_form,
         * win_filters,
-        * win_book_list;
+        * win_book_list,
+        * win_book_info;
 int page_number = 0;
 int page_size = 0;
 int book_cursor_pos = 0;
@@ -65,6 +66,7 @@ void process_input(int ch) {
                 books_page_up();
             }
             print_book_list_page();
+            print_book_info();
             break;
 
         case KEY_DOWN:
@@ -74,6 +76,7 @@ void process_input(int ch) {
                 books_page_down();
             }
             print_book_list_page();
+            print_book_info();
             break;
 
         case KEY_NPAGE:
@@ -110,6 +113,7 @@ int main() {
     win_book_list_border = newwin(LINES - 2, COLS / 3, 1, 0);
     win_book_info_border = newwin(LINES - 2, COLS * 2 / 3, 1, COLS / 3);
     win_book_list = newwin(LINES - 4, COLS / 3 - 2, 2, 1);
+    win_book_info = newwin(LINES - 4, (COLS * 2 / 3) - 1, 2, (COLS / 3) + 1);
     win_filters = newwin(1, COLS, LINES - 1, 0);
     win_form = derwin(stdscr, 1, COLS, 0, 0);
     config_windows();
@@ -153,6 +157,7 @@ int main() {
     delwin(win_form);
     delwin(win_filters);
     delwin(win_book_list);
+    delwin(win_book_info);
     delwin(win_book_list_border);
     delwin(win_book_info_border);
     endwin();
