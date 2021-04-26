@@ -122,7 +122,7 @@ int main() {
 
     box(win_book_list_border, 0, 0);
     box(win_book_info_border, 0, 0);
-    fields[0] = new_field(1, 40, 0, 3, 0, 0);
+    fields[0] = new_field(1, 25, 0, 3, 0, 0);
     fields[1] = new_field(1, 2, 0, 0, 0, 0);
     fields[2] = NULL;
 
@@ -136,6 +136,8 @@ int main() {
     set_form_win(form, stdscr);
     set_form_sub(form, derwin(win_form, 18, 76, 1, 1));
     post_form(form);
+
+    mvprintw(0, COLS - 48, "[Get book F1] [Return book F2] [Add new book F3]");
 
     refresh();
     wrefresh(win_form);
