@@ -21,6 +21,8 @@ WINDOW* win_book_list_border,
 int page_number = 0;
 int page_size = 0;
 int book_cursor_pos = 0;
+int client_socket = 0;
+int server_fd = 0;
 book* books;
 bool bookSearchFilters[4] = {false, false, false, false};
 
@@ -106,8 +108,6 @@ void process_input(int ch) {
     wrefresh(win_form);
 }
 
-#define PORT 8080
-
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         puts("FlexLibrary --client | --server port");
@@ -116,10 +116,25 @@ int main(int argc, char* argv[]) {
     char* end;
     short port = strtol(argv[2], &end, 10);
     if (strcmp(argv[1], "--client") == 0) {
-        connect_to_server(port);
+        client_socket = connect_to_server(port);
+        if (client_socket <= 0) {
+            puts("Can't connect to server!\n");
+            exit(EXIT_FAILURE);
+        }
+        char buffer[4096] = {0};
+        memcpy(buffer, "Hello from client!", sizeof(buffer));
+        send_data(client_socket, buffer, sizeof(buffer));
+        char new_buffer[1024] = {0};
+        read_data(client_socket, new_buffer, sizeof(new_buffer));
+        printf("%s\n", new_buffer);
     }
     else if (strcmp(argv[1], "--server") == 0) {
-        init_server(port);
+        server_fd = init_server(port);
+        if (server_fd <= 0) {
+            puts("Can't start server!\n");
+            exit(EXIT_FAILURE);
+        }
+        start_server(server_fd);
     }
 //    int ch;
 //    books = generate_books(MAX_BOOKS_AMOUNT);
