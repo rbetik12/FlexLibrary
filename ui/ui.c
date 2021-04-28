@@ -3,6 +3,7 @@
 #include <ui_defines.h>
 #include <books.h>
 #include <books_defines.h>
+#include <form.h>
 
 extern WINDOW* win_book_list;
 extern WINDOW* win_filters;
@@ -74,4 +75,26 @@ void init_ncurses() {
 
 void config_windows() {
     immedok(win_book_list, TRUE);
+}
+
+extern WINDOW* win_book_list_border;
+extern WINDOW* win_book_info_border;
+extern WINDOW* win_edit_form;
+extern WINDOW* win_form;
+extern FIELD* fields[3];
+
+void draw_main_ui() {
+    box(win_book_list_border, 0, 0);
+    box(win_book_info_border, 0, 0);
+    set_field_buffer(fields[1], 0, ">");
+
+    mvprintw(0, COLS - 48, "[Get book F1] [Return book F2] [Add new book F3]");
+    refresh();
+    wrefresh(win_form);
+    wrefresh(win_book_list_border);
+    wrefresh(win_book_info_border);
+    wrefresh(win_book_list);
+    wrefresh(win_filters);
+    print_filters();
+    print_book_list_page();
 }

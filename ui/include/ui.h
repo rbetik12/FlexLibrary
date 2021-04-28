@@ -13,3 +13,5 @@ void books_page_up();
 void init_ncurses();
 
 void config_windows();
+
+void draw_main_ui();
