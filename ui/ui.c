@@ -12,16 +12,18 @@ extern bool bookSearchFilters[4];
 extern int page_number;
 extern int page_size;
 extern int book_cursor_pos;
-extern book* books;
+extern book* books[];
 
 void print_book_info() {
-    book selected_book;
+    book* selected_book;
     wclear(win_book_info);
     selected_book = books[book_cursor_pos + (page_number * page_size)];
-    wprintw(win_book_info, "Title: %s\n", selected_book.title);
-    wprintw(win_book_info, "Authors: %s\n", selected_book.authors);
-    wprintw(win_book_info, "Annotation: %s\n", selected_book.annotation);
-    wprintw(win_book_info, "Tags: %s\n", selected_book.tags);
+    if (selected_book) {
+        wprintw(win_book_info, "Title: %s\n", selected_book->title);
+        wprintw(win_book_info, "Authors: %s\n", selected_book->authors);
+        wprintw(win_book_info, "Annotation: %s\n", selected_book->annotation);
+        wprintw(win_book_info, "Tags: %s\n", selected_book->tags);
+    }
     wrefresh(win_book_info);
 }
 
@@ -29,11 +31,13 @@ void print_book_list_page() {
     wclear(win_book_list);
     int rowNum = 0;
     for (int i = page_number * page_size; i < page_number * page_size + page_size; i++) {
-        if (rowNum == book_cursor_pos) {
-            wprintw(win_book_list, ">");
-            print_book_info();
+        if (books[i] != NULL) {
+            if (rowNum == book_cursor_pos) {
+                wprintw(win_book_list, ">");
+                print_book_info();
+            }
+            wprintw(win_book_list, "%s\n", books[i]->title);
         }
-        wprintw(win_book_list, "%s\n", books[i].title);
         rowNum += 1;
     }
     wrefresh(win_book_list);

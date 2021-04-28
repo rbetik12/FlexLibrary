@@ -4,6 +4,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string.h>
+#include <network_defines.h>
+#include <stdlib.h>
 
 int connect_to_server(short port) {
     int socket_fd;
@@ -46,6 +48,23 @@ int read_data(int socket_fd, void* buffer, size_t buffer_size) {
     else if (read_amount == 0) {
         return -1;
     }
+    return 0;
+}
+
+int get_all_books(int socket_fd, book* books[]) {
+    int command = GET_ALL;
+    int read_amount = 0;
+
+    send(socket_fd, &command, sizeof(command), 0);
+    book book;
+    int bookIndex = 0;
+    while ((read_amount = read(socket_fd, &book, sizeof(book))) == sizeof(book)) {
+        books[bookIndex] = calloc(1, sizeof(book));
+        memcpy(books[bookIndex], &book, sizeof(book));
+        bookIndex += 1;
+    }
+    printf("%s %d\n", (char*) &book, bookIndex);
+
     return 0;
 }
 

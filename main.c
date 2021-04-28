@@ -27,10 +27,15 @@ int page_size = 0;
 int book_cursor_pos = 0;
 int client_socket = 0;
 int server_fd = 0;
-book* books;
+book* books[MAX_BOOKS_AMOUNT];
 bool bookSearchFilters[4] = {false, false, false, false};
 bool open_edit_form = false;
 bool running = true;
+
+typedef enum {
+    SERVER,
+    CLIENT
+} RUN_MODE;
 
 typedef enum {
     TITLE,
@@ -41,6 +46,7 @@ typedef enum {
 } EDIT_FIELD;
 
 EDIT_FIELD current_edit_field = NONE;
+RUN_MODE run_mode;
 
 char* trim_whitespaces(char* str) {
     char* end;
@@ -86,7 +92,7 @@ void process_input(int ch) {
                 refresh();
                 wrefresh(win_edit_form);
             } else if (open_edit_form) {
-                book* cur_book = books + (page_number * page_size + book_cursor_pos);
+                book* cur_book = books[page_number * page_size + book_cursor_pos];
                 form_driver(edit_form, REQ_VALIDATION);
                 char* field_buffer_value = field_buffer(edit_field[0], 0);
                 field_buffer_value = trim_whitespaces(field_buffer_value);
@@ -122,8 +128,9 @@ void process_input(int ch) {
                 current_edit_field = TITLE;
                 move(0, 0);
                 clrtoeol();
-                book cur_book = books[page_number * page_size + book_cursor_pos];
-                set_field_buffer(edit_field[0], 0, cur_book.title);
+                book* cur_book = books[page_number * page_size + book_cursor_pos];
+                if (cur_book == NULL) return;
+                set_field_buffer(edit_field[0], 0, cur_book->title);
                 attron(A_REVERSE);
                 mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book title"), "Editing book title");
                 attroff(A_REVERSE);
@@ -137,8 +144,9 @@ void process_input(int ch) {
                 current_edit_field = AUTHORS;
                 move(0, 0);
                 clrtoeol();
-                book cur_book = books[page_number * page_size + book_cursor_pos];
-                set_field_buffer(edit_field[0], 0, cur_book.authors);
+                book* cur_book = books[page_number * page_size + book_cursor_pos];
+                if (cur_book == NULL) return;
+                set_field_buffer(edit_field[0], 0, cur_book->authors);
                 attron(A_REVERSE);
                 mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book authors"), "Editing book authors");
                 attroff(A_REVERSE);
@@ -152,8 +160,9 @@ void process_input(int ch) {
                 current_edit_field = ANNOTATION;
                 move(0, 0);
                 clrtoeol();
-                book cur_book = books[page_number * page_size + book_cursor_pos];
-                set_field_buffer(edit_field[0], 0, cur_book.annotation);
+                book* cur_book = books[page_number * page_size + book_cursor_pos];
+                if (cur_book == NULL) return;
+                set_field_buffer(edit_field[0], 0, cur_book->annotation);
                 attron(A_REVERSE);
                 mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book annotation"), "Editing book annotation");
                 attroff(A_REVERSE);
@@ -167,8 +176,9 @@ void process_input(int ch) {
                 current_edit_field = TAGS;
                 move(0, 0);
                 clrtoeol();
-                book cur_book = books[page_number * page_size + book_cursor_pos];
-                set_field_buffer(edit_field[0], 0, cur_book.tags);
+                book* cur_book = books[page_number * page_size + book_cursor_pos];
+                if (cur_book == NULL) return;
+                set_field_buffer(edit_field[0], 0, cur_book->tags);
                 attron(A_REVERSE);
                 mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book tags"), "Editing book tags");
                 attroff(A_REVERSE);
@@ -275,105 +285,106 @@ void process_input(int ch) {
 }
 
 int main(int argc, char* argv[]) {
-//    if (argc < 3) {
-//        puts("FlexLibrary --client | --server port");
-//        exit(EXIT_FAILURE);
-//    }
-//    char* end;
-//    short port = strtol(argv[2], &end, 10);
-//    if (strcmp(argv[1], "--client") == 0) {
-//        client_socket = connect_to_server(port);
-//        if (client_socket <= 0) {
-//            puts("Can't connect to server!\n");
-//            exit(EXIT_FAILURE);
-//        }
-//
-//    }
-//    else if (strcmp(argv[1], "--server") == 0) {
-//        server_fd = init_server(port);
-//        if (server_fd <= 0) {
-//            puts("Can't start server!\n");
-//            exit(EXIT_FAILURE);
-//        }
-//        start_server(server_fd);
-//    }
-    int ch;
-    books = generate_books(MAX_BOOKS_AMOUNT);
-    assert(books != NULL);
-
-    init_ncurses();
-    win_book_list_border = newwin(LINES - 2, COLS / 3, 1, 0);
-    win_book_info_border = newwin(LINES - 2, COLS * 2 / 3, 1, COLS / 3);
-    win_book_list = newwin(LINES - 4, COLS / 3 - 2, 2, 1);
-    win_book_info = newwin(LINES - 4, (COLS * 2 / 3) - 1, 2, (COLS / 3) + 1);
-    win_filters = newwin(1, COLS, LINES - 1, 0);
-    win_form = derwin(stdscr, 1, COLS, 0, 0);
-
-    win_edit_form = derwin(stdscr, 4, COLS, 0, 0);
-    config_windows();
-
-    page_size = LINES - 4;
-
-    box(win_book_list_border, 0, 0);
-    box(win_book_info_border, 0, 0);
-    box(win_edit_form, 0, 0);
-    fields[0] = new_field(1, 25, 0, 3, 0, 0);
-    fields[1] = new_field(1, 2, 0, 0, 0, 0);
-    fields[2] = NULL;
-
-    edit_field[0] = new_field(3, COLS - 1, 2, 0, 0, 0);
-    edit_field[1] = NULL;
-
-    set_field_buffer(fields[0], 0, "");
-    set_field_buffer(fields[1], 0, ">");
-
-    set_field_opts(fields[0], O_VISIBLE | O_PUBLIC | O_EDIT | O_ACTIVE);
-    set_field_opts(fields[1], O_VISIBLE | O_PUBLIC | O_AUTOSKIP);
-    set_field_opts(edit_field[0], O_VISIBLE | O_PUBLIC | O_EDIT | O_ACTIVE);
-    set_field_back(edit_field[0], A_UNDERLINE);
-
-    form = new_form(fields);
-    set_form_win(form, stdscr);
-    set_form_sub(form, derwin(win_form, 18, 76, 1, 1));
-    post_form(form);
-
-    edit_form = new_form(edit_field);
-    set_form_win(edit_form, stdscr);
-    set_form_sub(edit_form, derwin(win_edit_form, 18, 76, 1, 1));
-
-    mvprintw(0, COLS - 48, "[Get book F1] [Return book F2] [Add new book F3]");
-    mvwprintw(win_book_info_border, 0, 0, "Press 0 to edit this book");
-
-    refresh();
-    wrefresh(win_form);
-    wrefresh(win_book_list_border);
-    wrefresh(win_book_info_border);
-    wrefresh(win_book_list);
-    wrefresh(win_filters);
-
-    print_filters();
-    print_book_list_page();
-
-    while (running) {
-        ch = getch();
-        process_input(ch);
+    if (argc < 3) {
+        puts("FlexLibrary --client | --server port");
+        exit(EXIT_FAILURE);
     }
+    char* end;
+    short port = strtol(argv[2], &end, 10);
+    if (strcmp(argv[1], "--client") == 0) {
+        run_mode = CLIENT;
+        client_socket = connect_to_server(port);
+        if (client_socket <= 0) {
+            puts("Can't connect to server!\n");
+            exit(EXIT_FAILURE);
+        }
 
-    unpost_form(form);
-    free_form(form);
-    free_field(fields[0]);
-    free_field(fields[1]);
-    unpost_form(edit_form);
-    free_form(edit_form);
-    free_field(edit_field[0]);
-    delwin(win_form);
-    delwin(win_filters);
-    delwin(win_book_list);
-    delwin(win_book_info);
-    delwin(win_book_list_border);
-    delwin(win_book_info_border);
-    delwin(win_edit_form);
-    endwin();
-    free(books);
+    } else if (strcmp(argv[1], "--server") == 0) {
+        run_mode = SERVER;
+        server_fd = init_server(port);
+        if (server_fd <= 0) {
+            puts("Can't start server!\n");
+            exit(EXIT_FAILURE);
+        }
+        start_server(server_fd);
+    }
+    if (run_mode == CLIENT) {
+        int ch;
+        init_books(books);
+        get_all_books(client_socket, books);
+        init_ncurses();
+        win_book_list_border = newwin(LINES - 2, COLS / 3, 1, 0);
+        win_book_info_border = newwin(LINES - 2, COLS * 2 / 3, 1, COLS / 3);
+        win_book_list = newwin(LINES - 4, COLS / 3 - 2, 2, 1);
+        win_book_info = newwin(LINES - 4, (COLS * 2 / 3) - 1, 2, (COLS / 3) + 1);
+        win_filters = newwin(1, COLS, LINES - 1, 0);
+        win_form = derwin(stdscr, 1, COLS, 0, 0);
+
+        win_edit_form = derwin(stdscr, 4, COLS, 0, 0);
+        config_windows();
+
+        page_size = LINES - 4;
+
+        box(win_book_list_border, 0, 0);
+        box(win_book_info_border, 0, 0);
+        box(win_edit_form, 0, 0);
+        fields[0] = new_field(1, 25, 0, 3, 0, 0);
+        fields[1] = new_field(1, 2, 0, 0, 0, 0);
+        fields[2] = NULL;
+
+        edit_field[0] = new_field(3, COLS - 1, 2, 0, 0, 0);
+        edit_field[1] = NULL;
+
+        set_field_buffer(fields[0], 0, "");
+        set_field_buffer(fields[1], 0, ">");
+
+        set_field_opts(fields[0], O_VISIBLE | O_PUBLIC | O_EDIT | O_ACTIVE);
+        set_field_opts(fields[1], O_VISIBLE | O_PUBLIC | O_AUTOSKIP);
+        set_field_opts(edit_field[0], O_VISIBLE | O_PUBLIC | O_EDIT | O_ACTIVE);
+        set_field_back(edit_field[0], A_UNDERLINE);
+
+        form = new_form(fields);
+        set_form_win(form, stdscr);
+        set_form_sub(form, derwin(win_form, 18, 76, 1, 1));
+        post_form(form);
+
+        edit_form = new_form(edit_field);
+        set_form_win(edit_form, stdscr);
+        set_form_sub(edit_form, derwin(win_edit_form, 18, 76, 1, 1));
+
+        mvprintw(0, COLS - 48, "[Get book F1] [Return book F2] [Add new book F3]");
+        mvwprintw(win_book_info_border, 0, 0, "Press 0 to edit this book");
+
+        refresh();
+        wrefresh(win_form);
+        wrefresh(win_book_list_border);
+        wrefresh(win_book_info_border);
+        wrefresh(win_book_list);
+        wrefresh(win_filters);
+
+        print_filters();
+        print_book_list_page();
+
+        while (running) {
+            ch = getch();
+            process_input(ch);
+        }
+
+        unpost_form(form);
+        free_form(form);
+        free_field(fields[0]);
+        free_field(fields[1]);
+        unpost_form(edit_form);
+        free_form(edit_form);
+        free_field(edit_field[0]);
+        delwin(win_form);
+        delwin(win_filters);
+        delwin(win_book_list);
+        delwin(win_book_info);
+        delwin(win_book_list_border);
+        delwin(win_book_info_border);
+        delwin(win_edit_form);
+        endwin();
+    }
     return 0;
 }

@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <books.h>
 
 int opt;
 int freeSocketNum = 0;
@@ -15,6 +16,7 @@ int clientSockets[MAX_NETWORK_CLIENTS_AMOUNT] = {0};
 struct sockaddr_in address;
 pthread_t acceptThread;
 bool shutdown_server = false;
+book* books[MAX_BOOKS_AMOUNT];
 
 typedef struct {
     int server_fd;
@@ -82,6 +84,8 @@ int init_server(short port) {
         return -1;
     }
 
+    generate_books(books);
+
     return server_fd;
 }
 
@@ -90,16 +94,29 @@ int start_server(int server_fd) {
         return -1;
     }
     int read_amount = 0;
-    char echo_buffer[1024] = {0};
+    COMMAND command;
 
     while (!shutdown_server) {
         for (int socket_num = 0; socket_num < MAX_NETWORK_CLIENTS_AMOUNT; socket_num++) {
             if (clientSockets[socket_num] <= 0) {
                 continue;
             }
-            read_amount = read(clientSockets[socket_num], echo_buffer, sizeof(echo_buffer));
+            read_amount = read(clientSockets[socket_num], &command, sizeof(command));
             if (read_amount > 0) {
-                send(clientSockets[socket_num], echo_buffer, strlen(echo_buffer), 0);
+                switch (command) {
+                    case GET_ALL:
+                        for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
+                            if (books[i] == NULL) {
+                                send(clientSockets[socket_num], "eof1", strlen("eof1") + 1, 0);
+                                break;
+                            }
+                            send(clientSockets[socket_num], books[i], sizeof(book), 0);
+                        }
+                        send(clientSockets[socket_num], "eof", strlen("eof") + 1, 0);
+                        break;
+                    default:
+                        printf("Unknown command!\n");
+                }
             }
         }
     }

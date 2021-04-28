@@ -10,4 +10,5 @@ typedef struct book {
     char tags[MAX_BOOK_TAGS_AMOUNT * MAX_BOOK_TAG_LENGTH];
 } book;
 
-book* generate_books(uint32_t amount);
+void generate_books(book* books[]);
+int init_books(book* books[]);
