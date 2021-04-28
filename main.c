@@ -221,12 +221,16 @@ int main(int argc, char* argv[]) {
     free_form(form);
     free_field(fields[0]);
     free_field(fields[1]);
+    unpost_form(edit_form);
+    free_form(edit_form);
+    free_field(edit_field[0]);
     delwin(win_form);
     delwin(win_filters);
     delwin(win_book_list);
     delwin(win_book_info);
     delwin(win_book_list_border);
     delwin(win_book_info_border);
+    delwin(win_edit_form);
     endwin();
     for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
         free(books[i].title);
