@@ -15,3 +15,5 @@ void init_ncurses();
 void config_windows();
 
 void draw_main_ui();
+
+void close_edit_menu();
