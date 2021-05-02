@@ -1,7 +1,8 @@
 #pragma once
 
-#define MAX_NETWORK_CLIENTS_AMOUNT 32
+#define MAX_NETWORK_CLIENTS_AMOUNT 3
 
 typedef enum {
-    GET_ALL
+    GET_ALL,
+    UPDATE_BOOK
 } COMMAND;

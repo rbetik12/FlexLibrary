@@ -4,6 +4,7 @@
 #include <books_defines.h>
 
 typedef struct book {
+    int book_id;
     char title[MAX_BOOK_TITLE_LENGTH];
     char authors[MAX_BOOK_AUTHORS_AMOUNT * MAX_BOOK_AUTHOR_NAME_LENGTH];
     char annotation[MAX_BOOK_ANNOTATION_LENGTH];

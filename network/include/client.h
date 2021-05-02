@@ -7,3 +7,4 @@ int send_data(int socket_fd, void* buffer, size_t data_size);
 int read_data(int socket_fd, void* buffer, size_t buffer_size);
 
 int get_all_books(int socket_fd, book* books[]);
+int update_book(int socket_fd, book book);

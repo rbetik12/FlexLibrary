@@ -74,6 +74,7 @@ void process_input(int ch) {
             }
             break;
 
+        // Zero button
         case 48:
             if (!open_edit_form) {
                 open_edit_form = true;
@@ -115,6 +116,7 @@ void process_input(int ch) {
                 }
 
                 current_edit_field = NONE;
+                update_book(client_socket, *cur_book);
                 close_edit_menu();
             }
         case KEY_MOUSE:

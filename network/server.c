@@ -9,10 +9,12 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <books.h>
+#include <fcntl.h>
+#include <errno.h>
 
 int opt;
-int freeSocketNum = 0;
-int clientSockets[MAX_NETWORK_CLIENTS_AMOUNT] = {0};
+int free_socket_num = 0;
+int client_sockets[MAX_NETWORK_CLIENTS_AMOUNT] = {0};
 struct sockaddr_in address;
 pthread_t acceptThread;
 bool shutdown_server = false;
@@ -25,16 +27,17 @@ typedef struct {
 void* accept_thread(void* _args) {
     int addr_len = sizeof(address);
     accept_thread_args* args = (accept_thread_args*) _args;
+    int socket_fd = 0;
 
     while (!shutdown_server) {
-        if ((clientSockets[freeSocketNum] = accept(args->server_fd, (struct sockaddr*) &address, (socklen_t*) &addr_len)) < 0) {
+        if ((client_sockets[free_socket_num] = accept(args->server_fd, (struct sockaddr*) &address, (socklen_t*) &addr_len)) < 0) {
             perror("accept");
         }
-        if (freeSocketNum == MAX_NETWORK_CLIENTS_AMOUNT - 1) {
+        if (free_socket_num == MAX_NETWORK_CLIENTS_AMOUNT - 1) {
             perror("max client exceeded");
         }
         else {
-            freeSocketNum += 1;
+            free_socket_num += 1;
         }
     }
 
@@ -46,7 +49,7 @@ int create_accept_thread(int server_fd) {
     accept_thread_args* args = malloc(sizeof(accept_thread_args));
     args->server_fd = server_fd;
 
-    if (pthread_create(&acceptThread, NULL, accept_thread, (void*)args)) {
+    if (pthread_create(&acceptThread, NULL, accept_thread, (void*) args)) {
         perror("Can't create accept server thread");
         return -1;
     }
@@ -55,6 +58,8 @@ int create_accept_thread(int server_fd) {
 
 int init_server(short port) {
     int server_fd = 0;
+    int flags;
+
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("Can't create server socket!");
         return -1;
@@ -89,33 +94,67 @@ int init_server(short port) {
     return server_fd;
 }
 
+void server_tick(int command, int socket_num) {
+    switch (command) {
+        case GET_ALL:
+            printf("Get all\n");
+            for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
+                if (books[i] == NULL) {
+                    send(client_sockets[socket_num], "eof1", strlen("eof1") + 1, 0);
+                    break;
+                }
+                send(client_sockets[socket_num], books[i], sizeof(book), 0);
+            }
+            send(client_sockets[socket_num], "eof", strlen("eof") + 1, 0);
+            break;
+        case UPDATE_BOOK: {
+            book book;
+            read(client_sockets[socket_num], &book, sizeof(book));
+            printf("Updating book\n");
+            for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
+                if (books[i]->book_id == book.book_id) {
+                    if (books[i]) {
+                        memcpy(books[i], &book, sizeof(book));
+                    }
+                }
+            }
+        }
+        default:
+            printf("Unknown command!\n");
+    }
+}
+
 int start_server(int server_fd) {
     if (server_fd <= 0) {
         return -1;
     }
     int read_amount = 0;
     COMMAND command;
+    fd_set read_fds;
+    int ret;
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 1000;
 
     while (!shutdown_server) {
+        FD_ZERO(&read_fds);
         for (int socket_num = 0; socket_num < MAX_NETWORK_CLIENTS_AMOUNT; socket_num++) {
-            if (clientSockets[socket_num] <= 0) {
+            if (client_sockets[socket_num] <= 0) {
                 continue;
             }
-            read_amount = read(clientSockets[socket_num], &command, sizeof(command));
-            if (read_amount > 0) {
-                switch (command) {
-                    case GET_ALL:
-                        for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
-                            if (books[i] == NULL) {
-                                send(clientSockets[socket_num], "eof1", strlen("eof1") + 1, 0);
-                                break;
-                            }
-                            send(clientSockets[socket_num], books[i], sizeof(book), 0);
-                        }
-                        send(clientSockets[socket_num], "eof", strlen("eof") + 1, 0);
-                        break;
-                    default:
-                        printf("Unknown command!\n");
+            FD_SET(client_sockets[socket_num], &read_fds);
+//            printf("Updating socket with id: %d\n", client_sockets[socket_num]);
+            ret = select(client_sockets[socket_num] + 1, &read_fds, NULL, NULL, &tv);
+            if (ret < 0) {
+                perror("ret");
+            }
+            if (ret == 0) {
+                continue;
+            }
+            if (ret > 0) {
+                read_amount = read(client_sockets[socket_num], &command, sizeof(command));
+                if (read_amount > 0) {
+                    server_tick(command, socket_num);
                 }
             }
         }

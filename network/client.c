@@ -68,3 +68,10 @@ int get_all_books(int socket_fd, book* books[]) {
     return 0;
 }
 
+int update_book(int socket_fd, book book) {
+    int command = UPDATE_BOOK;
+    send(socket_fd, &command, sizeof(command), 0);
+    send(socket_fd, &book, sizeof(book), 0);
+    return 0;
+}
+
