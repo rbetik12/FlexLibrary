@@ -27,6 +27,7 @@ int page_size = 0;
 int book_cursor_pos = 0;
 int client_socket = 0;
 int server_fd = 0;
+int client_books_amount[MAX_BOOKS_AMOUNT] = {0};
 book* books[MAX_BOOKS_AMOUNT];
 bool bookSearchFilters[4] = {false, false, false, false};
 bool open_edit_form = false;
@@ -139,6 +140,16 @@ void process_input(int ch) {
                 refresh();
                 wrefresh(win_edit_form);
             }
+            else {
+                uint32_t book_index = page_number * page_size + book_cursor_pos;
+                book* cur_book = books[book_index];
+                if (cur_book->amount > 0) {
+                    cur_book->amount -= 1;
+                    client_books_amount[book_index] += 1;
+                }
+                print_book_info();
+                update_book(client_socket, *cur_book);
+            }
             break;
 
         case KEY_F(2):
@@ -154,6 +165,22 @@ void process_input(int ch) {
                 attroff(A_REVERSE);
                 refresh();
                 wrefresh(win_edit_form);
+            }
+            else {
+                uint32_t book_index = page_number * page_size + book_cursor_pos;
+                book* cur_book = books[book_index];
+                if (client_books_amount[book_index] > 0) {
+                    client_books_amount[book_index] -= 1;
+                }
+                else {
+                    return;
+                }
+                cur_book->amount += 1;
+                if (cur_book->amount > MAX_ONE_BOOK_AMOUNT) {
+                    cur_book->amount = MAX_ONE_BOOK_AMOUNT;
+                }
+                print_book_info();
+                update_book(client_socket, *cur_book);
             }
             break;
 
