@@ -23,6 +23,7 @@ void print_book_info() {
         wprintw(win_book_info, "Authors: %s\n", selected_book->authors);
         wprintw(win_book_info, "Annotation: %s\n", selected_book->annotation);
         wprintw(win_book_info, "Tags: %s\n", selected_book->tags);
+        wprintw(win_book_info, "Amount: %d/%d\n", selected_book->amount, MAX_ONE_BOOK_AMOUNT);
     }
     wrefresh(win_book_info);
 }
