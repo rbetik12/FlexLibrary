@@ -104,12 +104,12 @@ void draw_main_ui() {
     print_book_list_page();
 }
 
-extern bool open_edit_form;
+extern bool is_open_edit_form;
 FORM* edit_form;
 FORM* form;
 
 void close_edit_menu() {
-    open_edit_form = false;
+    is_open_edit_form = false;
     unpost_form(edit_form);
     post_form(form);
     form_driver(edit_form, REQ_VALIDATION);

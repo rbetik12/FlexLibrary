@@ -10,6 +10,7 @@
 #include <server.h>
 #include <client.h>
 #include <ctype.h>
+#include <utils.h>
 
 FORM* form;
 FORM* edit_form;
@@ -29,8 +30,9 @@ int client_socket = 0;
 int server_fd = 0;
 int client_books_amount[MAX_BOOKS_AMOUNT] = {0};
 book* books[MAX_BOOKS_AMOUNT];
+book new_book;
 bool bookSearchFilters[4] = {false, false, false, false};
-bool open_edit_form = false;
+bool is_open_edit_form = false;
 bool running = true;
 
 typedef enum {
@@ -49,85 +51,80 @@ typedef enum {
 EDIT_FIELD current_edit_field = NONE;
 RUN_MODE run_mode;
 
-char* trim_whitespaces(char* str) {
-    char* end;
+void save_cur_book_edit_info() {
+    form_driver(edit_form, REQ_VALIDATION);
+    char* field_buffer_value = trim_whitespaces(field_buffer(edit_field[0], 0));
+    if (strlen(field_buffer_value) > 0) {
+        book* cur_book = books[page_number * page_size + book_cursor_pos];
+        switch (current_edit_field) {
+            case TITLE:
+                memcpy(cur_book->title, field_buffer_value, MAX_BOOK_TITLE_LENGTH);
+                break;
+            case AUTHORS:
+                memcpy(cur_book->authors, field_buffer_value, MAX_BOOK_AUTHORS_AMOUNT);
+                break;
+            case ANNOTATION:
+                memcpy(cur_book->annotation, field_buffer_value, MAX_BOOK_ANNOTATION_LENGTH);
+                break;
+            case TAGS:
+                memcpy(cur_book->tags, field_buffer_value, MAX_BOOK_TAGS_AMOUNT);
+                break;
+            default:
+                break;
+        }
+    }
+}
 
-    while (isspace(*str))
-        str++;
-    if (*str == 0)
-        return str;
+void close_edit_form(bool is_update_book) {
+    if (is_update_book) {
+        book *cur_book = books[page_number * page_size + book_cursor_pos];
+        form_driver(edit_form, REQ_VALIDATION);
+        save_cur_book_edit_info();
+        current_edit_field = NONE;
+        update_book(client_socket, *cur_book);
+    }
+    close_edit_menu();
+}
 
-    end = str + strnlen(str, 128) - 1;
-
-    while (end > str && isspace(*end))
-        end--;
-
-    *(end + 1) = '\0';
-    return str;
+void open_edit_form() {
+    is_open_edit_form = true;
+    unpost_form(form);
+    post_form(edit_form);
+    set_current_field(edit_form, edit_field[0]);
+    wclear(stdscr);
+    attron(A_REVERSE);
+    int ui_row_offset = COLS / 2 - strlen("[Title F1] [Authors F2] [Annotation F3] [Close 0]");
+    if (ui_row_offset < 0) {
+        ui_row_offset = -ui_row_offset;
+    }
+    mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book"), "Editing book");
+    mvwprintw(stdscr, 1, ui_row_offset, "[Title F1] [Authors F2] [Annotation F3] [Tags F4] [Close 0]");
+    attroff(A_REVERSE);
+    refresh();
+    wrefresh(win_edit_form);
 }
 
 void process_input(int ch) {
     MEVENT event;
     switch (ch) {
         case KEY_ENTER:
-            if (open_edit_form) {
+            if (is_open_edit_form) {
                 close_edit_menu();
             }
             break;
 
         // Zero button
         case 48:
-            if (!open_edit_form) {
-                open_edit_form = true;
-                unpost_form(form);
-                post_form(edit_form);
-                set_current_field(edit_form, edit_field[0]);
-                wclear(stdscr);
-                attron(A_REVERSE);
-                int ui_row_offset = COLS / 2 - strlen("[Title F1] [Authors F2] [Annotation F3] [Close 0]");
-                if (ui_row_offset < 0) {
-                    ui_row_offset = -ui_row_offset;
-                }
-                mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book"), "Editing book");
-                mvwprintw(stdscr, 1, ui_row_offset, "[Title F1] [Authors F2] [Annotation F3] [Tags F4] [Close 0]");
-                attroff(A_REVERSE);
-                refresh();
-                wrefresh(win_edit_form);
-            } else if (open_edit_form) {
-                book* cur_book = books[page_number * page_size + book_cursor_pos];
-                form_driver(edit_form, REQ_VALIDATION);
-                char* field_buffer_value = field_buffer(edit_field[0], 0);
-                field_buffer_value = trim_whitespaces(field_buffer_value);
-
-                switch (current_edit_field) {
-                    case TITLE:
-                        memcpy(cur_book->title, field_buffer_value, MAX_BOOK_TITLE_LENGTH);
-                        break;
-                    case AUTHORS:
-                        memcpy(cur_book->authors, field_buffer_value, MAX_BOOK_AUTHORS_AMOUNT);
-                        break;
-                    case ANNOTATION:
-                        memcpy(cur_book->annotation, field_buffer_value, MAX_BOOK_ANNOTATION_LENGTH);
-                        break;
-                    case TAGS:
-                        memcpy(cur_book->tags, field_buffer_value, MAX_BOOK_TAGS_AMOUNT);
-                        break;
-                    default:
-                        break;
-                }
-
-                current_edit_field = NONE;
-                update_book(client_socket, *cur_book);
-                close_edit_menu();
+            if (!is_open_edit_form) {
+                open_edit_form();
+            } else if (is_open_edit_form) {
+                close_edit_form(true);
             }
-        case KEY_MOUSE:
-            if (getmouse(&event) == OK) {
-            }
-            wrefresh(win_book_list_border);
             break;
 
         case KEY_F(1):
-            if (open_edit_form) {
+            if (is_open_edit_form) {
+                save_cur_book_edit_info();
                 current_edit_field = TITLE;
                 move(0, 0);
                 clrtoeol();
@@ -153,7 +150,8 @@ void process_input(int ch) {
             break;
 
         case KEY_F(2):
-            if (open_edit_form) {
+            if (is_open_edit_form) {
+                save_cur_book_edit_info();
                 current_edit_field = AUTHORS;
                 move(0, 0);
                 clrtoeol();
@@ -185,7 +183,8 @@ void process_input(int ch) {
             break;
 
         case KEY_F(3):
-            if (open_edit_form) {
+            if (is_open_edit_form) {
+                save_cur_book_edit_info();
                 current_edit_field = ANNOTATION;
                 move(0, 0);
                 clrtoeol();
@@ -201,7 +200,8 @@ void process_input(int ch) {
             break;
 
         case KEY_F(4):
-            if (open_edit_form) {
+            if (is_open_edit_form) {
+                save_cur_book_edit_info();
                 current_edit_field = TAGS;
                 move(0, 0);
                 clrtoeol();
@@ -235,7 +235,7 @@ void process_input(int ch) {
             break;
 
         case KEY_LEFT:
-            if (open_edit_form) {
+            if (is_open_edit_form) {
                 form_driver(edit_form, REQ_PREV_CHAR);
             } else {
                 form_driver(form, REQ_PREV_CHAR);
@@ -243,7 +243,7 @@ void process_input(int ch) {
             break;
 
         case KEY_RIGHT:
-            if (open_edit_form) {
+            if (is_open_edit_form) {
                 form_driver(edit_form, REQ_NEXT_CHAR);
             } else {
                 form_driver(form, REQ_NEXT_CHAR);
@@ -251,7 +251,7 @@ void process_input(int ch) {
             break;
 
         case KEY_UP:
-            if (open_edit_form) {}
+            if (is_open_edit_form) {}
             else {
                 book_cursor_pos -= 1;
                 if (book_cursor_pos < 0) {
@@ -264,7 +264,7 @@ void process_input(int ch) {
             break;
 
         case KEY_DOWN:
-            if (open_edit_form) {}
+            if (is_open_edit_form) {}
             else {
                 book_cursor_pos += 1;
                 if (book_cursor_pos >= page_size) {
@@ -286,7 +286,7 @@ void process_input(int ch) {
 
         case KEY_BACKSPACE:
         case 127:
-            if (open_edit_form) {
+            if (is_open_edit_form) {
                 form_driver(edit_form, REQ_DEL_PREV);
             } else {
                 form_driver(form, REQ_DEL_PREV);
@@ -294,7 +294,7 @@ void process_input(int ch) {
             break;
 
         case KEY_DC:
-            if (open_edit_form) {
+            if (is_open_edit_form) {
                 form_driver(edit_form, REQ_DEL_CHAR);
             } else {
                 form_driver(form, REQ_DEL_CHAR);
@@ -302,7 +302,7 @@ void process_input(int ch) {
             break;
 
         default:
-            if (open_edit_form) {
+            if (is_open_edit_form) {
                 form_driver(edit_form, ch);
             } else {
                 form_driver(form, ch);

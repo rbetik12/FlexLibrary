@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 void print_book_list_page();
 
 void print_book_info();
