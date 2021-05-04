@@ -75,20 +75,51 @@ void save_book_edit_info(book* cur_book) {
     }
 }
 
-void save_book() {
+void save_book(EDIT_FIELD new_field) {
     if (!is_open_book_create) {
         book *cur_book = books[page_number * page_size + book_cursor_pos];
         save_book_edit_info(cur_book);
         if (cur_book == NULL) return;
-        set_field_buffer(edit_field[0], 0, cur_book->title);
+        switch (new_field) {
+            case TITLE:
+                set_field_buffer(edit_field[0], 0, cur_book->title);
+                break;
+            case AUTHORS:
+                set_field_buffer(edit_field[0], 0, cur_book->authors);
+                break;
+            case ANNOTATION:
+                set_field_buffer(edit_field[0], 0, cur_book->annotation);
+                break;
+            case TAGS:
+                set_field_buffer(edit_field[0], 0, cur_book->tags);
+                break;
+            default:
+                break;
+        }
     }
     else {
         save_book_edit_info(&new_book);
+        switch (new_field) {
+            case TITLE:
+                set_field_buffer(edit_field[0], 0, new_book.title);
+                break;
+            case AUTHORS:
+                set_field_buffer(edit_field[0], 0, new_book.authors);
+                break;
+            case ANNOTATION:
+                set_field_buffer(edit_field[0], 0, new_book.annotation);
+                break;
+            case TAGS:
+                set_field_buffer(edit_field[0], 0, new_book.tags);
+                break;
+            default:
+                break;
+        }
     }
 }
 
-void close_edit_form(bool is_update_book) {
-    if (is_update_book) {
+void close_edit_form() {
+    if (!is_open_book_create) {
         book *cur_book = books[page_number * page_size + book_cursor_pos];
         form_driver(edit_form, REQ_VALIDATION);
         save_book_edit_info(cur_book);
@@ -97,6 +128,8 @@ void close_edit_form(bool is_update_book) {
     }
     else {
         is_open_book_create = false;
+        save_book_edit_info(&new_book);
+
     }
     close_edit_menu();
 }
@@ -116,7 +149,12 @@ void open_edit_form(bool is_update_book) {
     if (ui_row_offset < 0) {
         ui_row_offset = -ui_row_offset;
     }
-    mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book"), "Editing book");
+    if (is_update_book) {
+        mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book"), "Editing book");
+    }
+    else {
+        mvwprintw(stdscr, 0, COLS / 2 - strlen("Creating book"), "Creating book");
+    }
     mvwprintw(stdscr, 1, ui_row_offset, "[Title F1] [Authors F2] [Annotation F3] [Tags F4] [Close 0]");
     attroff(A_REVERSE);
     refresh();
@@ -143,7 +181,7 @@ void process_input(int ch) {
 
         case KEY_F(1):
             if (is_open_edit_form) {
-                save_book();
+                save_book(TITLE);
                 current_edit_field = TITLE;
                 move(0, 0);
                 clrtoeol();
@@ -167,13 +205,10 @@ void process_input(int ch) {
 
         case KEY_F(2):
             if (is_open_edit_form) {
-                save_book();
+                save_book(AUTHORS);
                 current_edit_field = AUTHORS;
                 move(0, 0);
                 clrtoeol();
-                book* cur_book = books[page_number * page_size + book_cursor_pos];
-                if (cur_book == NULL) return;
-                set_field_buffer(edit_field[0], 0, cur_book->authors);
                 attron(A_REVERSE);
                 mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book authors"), "Editing book authors");
                 attroff(A_REVERSE);
@@ -200,30 +235,27 @@ void process_input(int ch) {
 
         case KEY_F(3):
             if (is_open_edit_form) {
-                save_book();
+                save_book(ANNOTATION);
                 current_edit_field = ANNOTATION;
                 move(0, 0);
                 clrtoeol();
-                book* cur_book = books[page_number * page_size + book_cursor_pos];
-                if (cur_book == NULL) return;
-                set_field_buffer(edit_field[0], 0, cur_book->annotation);
                 attron(A_REVERSE);
                 mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book annotation"), "Editing book annotation");
                 attroff(A_REVERSE);
                 refresh();
                 wrefresh(win_edit_form);
             }
+            else {
+                open_edit_form(false);
+            }
             break;
 
         case KEY_F(4):
             if (is_open_edit_form) {
-                save_book();
+                save_book(TAGS);
                 current_edit_field = TAGS;
                 move(0, 0);
                 clrtoeol();
-                book* cur_book = books[page_number * page_size + book_cursor_pos];
-                if (cur_book == NULL) return;
-                set_field_buffer(edit_field[0], 0, cur_book->tags);
                 attron(A_REVERSE);
                 mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book tags"), "Editing book tags");
                 attroff(A_REVERSE);
