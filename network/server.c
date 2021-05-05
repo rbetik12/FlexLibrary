@@ -118,6 +118,20 @@ void server_tick(int command, int socket_num) {
                     }
                 }
             }
+            break;
+        }
+        case NEW_BOOK: {
+            book book;
+            read(client_sockets[socket_num], &book, sizeof(book));
+            for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
+                if (!books[i]) {
+                    books[i] = calloc(1, sizeof(book));
+                    book.book_id = i;
+                    memcpy(books[i], &book, sizeof(book));
+                    break;
+                }
+            }
+            break;
         }
         default:
             printf("Unknown command!\n");

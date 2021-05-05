@@ -6,7 +6,7 @@ void generate_books(book* books[]) {
     for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
         books[i] = NULL;
     }
-    for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
+    for (int i = 0; i < 20; i++) {
         books[i] = calloc(1, sizeof(book));
         books[i]->book_id = i;
         books[i]->amount = MAX_ONE_BOOK_AMOUNT;

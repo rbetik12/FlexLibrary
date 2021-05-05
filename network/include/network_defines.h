@@ -4,5 +4,6 @@
 
 typedef enum {
     GET_ALL,
-    UPDATE_BOOK
+    UPDATE_BOOK,
+    NEW_BOOK
 } COMMAND;

@@ -75,3 +75,10 @@ int update_book(int socket_fd, book book) {
     return 0;
 }
 
+int create_book(int socket_fd, book* _book) {
+    int command = NEW_BOOK;
+    send(socket_fd, &command, sizeof(command), 0);
+    send(socket_fd, _book, sizeof(book), 0);
+    return 0;
+}
+

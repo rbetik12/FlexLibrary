@@ -129,7 +129,7 @@ void close_edit_form() {
     else {
         is_open_book_create = false;
         save_book_edit_info(&new_book);
-
+        create_book(client_socket, &new_book);
     }
     close_edit_menu();
 }
