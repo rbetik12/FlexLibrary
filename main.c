@@ -11,27 +11,30 @@
 #include <client.h>
 #include <ctype.h>
 #include <utils.h>
+#include <signal.h>
 
-FORM* form;
-FORM* edit_form;
-FIELD* fields[3];
-FIELD* edit_field[2];
-WINDOW* win_book_list_border,
-        * win_book_info_border,
-        * win_form,
-        * win_filters,
-        * win_book_list,
-        * win_book_info,
-        * win_edit_form;
+FORM *form;
+FORM *edit_form;
+FIELD *fields[3];
+FIELD *edit_field[2];
+WINDOW *win_book_list_border,
+        *win_book_info_border,
+        *win_form,
+        *win_filters,
+        *win_book_list,
+        *win_book_info,
+        *win_edit_form;
 int page_number = 0;
 int page_size = 0;
 int book_cursor_pos = 0;
 int client_socket = 0;
 int server_fd = 0;
 int client_books_amount[MAX_BOOKS_AMOUNT] = {0};
-book* books[MAX_BOOKS_AMOUNT];
+book **books;
+book *search_res_books[MAX_BOOKS_AMOUNT];
+book **tmp_book_ptr;
 book new_book;
-bool bookSearchFilters[4] = {false, false, false, false};
+bool book_search_filters[4] = {false, false, false, false};
 bool is_open_edit_form = false;
 bool is_open_book_create = false;
 bool running = true;
@@ -52,9 +55,9 @@ typedef enum {
 EDIT_FIELD current_edit_field = NONE;
 RUN_MODE run_mode;
 
-void save_book_edit_info(book* cur_book) {
+void save_book_edit_info(book *cur_book) {
     form_driver(edit_form, REQ_VALIDATION);
-    char* field_buffer_value = trim_whitespaces(field_buffer(edit_field[0], 0));
+    char *field_buffer_value = trim_whitespaces(field_buffer(edit_field[0], 0));
     if (strlen(field_buffer_value) > 0) {
         switch (current_edit_field) {
             case TITLE:
@@ -96,8 +99,7 @@ void save_book(EDIT_FIELD new_field) {
             default:
                 break;
         }
-    }
-    else {
+    } else {
         save_book_edit_info(&new_book);
         switch (new_field) {
             case TITLE:
@@ -125,8 +127,7 @@ void close_edit_form() {
         save_book_edit_info(cur_book);
         current_edit_field = NONE;
         update_book(client_socket, *cur_book);
-    }
-    else {
+    } else {
         is_open_book_create = false;
         save_book_edit_info(&new_book);
         create_book(client_socket, &new_book);
@@ -151,8 +152,7 @@ void open_edit_form(bool is_update_book) {
     }
     if (is_update_book) {
         mvwprintw(stdscr, 0, COLS / 2 - strlen("Editing book"), "Editing book");
-    }
-    else {
+    } else {
         mvwprintw(stdscr, 0, COLS / 2 - strlen("Creating book"), "Creating book");
     }
     mvwprintw(stdscr, 1, ui_row_offset, "[Title F1] [Authors F2] [Annotation F3] [Tags F4] [Close 0]");
@@ -161,16 +161,82 @@ void open_edit_form(bool is_update_book) {
     wrefresh(win_edit_form);
 }
 
+bool _contains(char *str, char *string_to_search) {
+    int t = 0;
+    int len = strlen(str);
+    int str_srch_len = strlen(string_to_search);
+
+    for (int i = 0; i < len; i++) {
+        if (t == str_srch_len)
+            break;
+        if (str[i] == string_to_search[t])
+            t++;
+        else
+            t = 0;
+    }
+
+    return t < str_srch_len ? false : true;
+}
+
+bool contains(book book, char *string_to_search) {
+    bool res = false;
+    if (book_search_filters[SEARCH_IN_TITLE]) {
+        res = _contains(book.title, string_to_search);
+        if (res) return true;
+    }
+    if (book_search_filters[SEARCH_IN_ANNOTATION]) {
+        res = _contains(book.annotation, string_to_search);
+        if (res) return true;
+    }
+    if (book_search_filters[SEARCH_IN_AUTHOR]) {
+        res = _contains(book.authors, string_to_search);
+        if (res) return true;
+    }
+    if (book_search_filters[SEARCH_IN_TAGS]) {
+        res = _contains(book.tags, string_to_search);
+        if (res) return true;
+    }
+    return res;
+}
+
 void process_input(int ch) {
     MEVENT event;
     switch (ch) {
+        case 0xA:
         case KEY_ENTER:
             if (is_open_edit_form) {
                 close_edit_menu();
+            } else {
+                form_driver(form, REQ_VALIDATION);
+                char *field_buffer_value = trim_whitespaces(field_buffer(fields[0], 0));
+                int search_res_index = 0;
+
+                if (strlen(field_buffer_value) == 0) {
+                    books = tmp_book_ptr;
+                    for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
+                        if (search_res_books[i]) {
+                            memcpy(books[search_res_books[i]->book_id], search_res_books[i], sizeof(book));
+                            free(search_res_books[i]);
+                        }
+                    }
+                }
+                else {
+                    for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
+                        if (books[i] && contains(*books[i], field_buffer_value)) {
+                            search_res_books[search_res_index] = calloc(1, sizeof(book));
+                            memcpy(search_res_books[search_res_index], books[i], sizeof(book));
+                            search_res_index += 1;
+                        }
+                    }
+                    tmp_book_ptr = books;
+                    books = search_res_books;
+                }
+                print_book_list_page();
+                print_book_info();
             }
             break;
 
-        // Zero button
+            // Zero button
         case 48:
             if (!is_open_edit_form) {
                 open_edit_form(true);
@@ -190,10 +256,9 @@ void process_input(int ch) {
                 attroff(A_REVERSE);
                 refresh();
                 wrefresh(win_edit_form);
-            }
-            else {
+            } else {
                 uint32_t book_index = page_number * page_size + book_cursor_pos;
-                book* cur_book = books[book_index];
+                book *cur_book = books[book_index];
                 if (cur_book->amount > 0) {
                     cur_book->amount -= 1;
                     client_books_amount[book_index] += 1;
@@ -214,14 +279,12 @@ void process_input(int ch) {
                 attroff(A_REVERSE);
                 refresh();
                 wrefresh(win_edit_form);
-            }
-            else {
+            } else {
                 uint32_t book_index = page_number * page_size + book_cursor_pos;
-                book* cur_book = books[book_index];
+                book *cur_book = books[book_index];
                 if (client_books_amount[book_index] > 0) {
                     client_books_amount[book_index] -= 1;
-                }
-                else {
+                } else {
                     return;
                 }
                 cur_book->amount += 1;
@@ -244,8 +307,7 @@ void process_input(int ch) {
                 attroff(A_REVERSE);
                 refresh();
                 wrefresh(win_edit_form);
-            }
-            else {
+            } else {
                 open_edit_form(false);
             }
             break;
@@ -262,23 +324,23 @@ void process_input(int ch) {
                 refresh();
                 wrefresh(win_edit_form);
             } else {
-                bookSearchFilters[SEARCH_IN_TITLE] = !bookSearchFilters[SEARCH_IN_TITLE];
+                book_search_filters[SEARCH_IN_TITLE] = !book_search_filters[SEARCH_IN_TITLE];
                 print_filters();
             }
             break;
 
         case KEY_F(5):
-            bookSearchFilters[SEARCH_IN_AUTHOR] = !bookSearchFilters[SEARCH_IN_AUTHOR];
+            book_search_filters[SEARCH_IN_AUTHOR] = !book_search_filters[SEARCH_IN_AUTHOR];
             print_filters();
             break;
 
         case KEY_F(6):
-            bookSearchFilters[SEARCH_IN_ANNOTATION] = !bookSearchFilters[SEARCH_IN_ANNOTATION];
+            book_search_filters[SEARCH_IN_ANNOTATION] = !book_search_filters[SEARCH_IN_ANNOTATION];
             print_filters();
             break;
 
         case KEY_F(7):
-            bookSearchFilters[SEARCH_IN_TAGS] = !bookSearchFilters[SEARCH_IN_TAGS];
+            book_search_filters[SEARCH_IN_TAGS] = !book_search_filters[SEARCH_IN_TAGS];
             print_filters();
             break;
 
@@ -361,12 +423,12 @@ void process_input(int ch) {
     wrefresh(win_form);
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if (argc < 3) {
         puts("FlexLibrary --client | --server port");
         exit(EXIT_FAILURE);
     }
-    char* end;
+    char *end;
     short port = strtol(argv[2], &end, 10);
     if (strcmp(argv[1], "--client") == 0) {
         run_mode = CLIENT;
@@ -387,6 +449,7 @@ int main(int argc, char* argv[]) {
     }
     if (run_mode == CLIENT) {
         int ch;
+        books = calloc(MAX_BOOKS_AMOUNT, sizeof(book *));
         init_books(books);
         get_all_books(client_socket, books);
         init_ncurses();

@@ -123,6 +123,7 @@ void server_tick(int command, int socket_num) {
         case NEW_BOOK: {
             book book;
             read(client_sockets[socket_num], &book, sizeof(book));
+            printf("New book\n");
             for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
                 if (!books[i]) {
                     books[i] = calloc(1, sizeof(book));

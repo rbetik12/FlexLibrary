@@ -8,11 +8,11 @@
 extern WINDOW* win_book_list;
 extern WINDOW* win_filters;
 extern WINDOW* win_book_info;
-extern bool bookSearchFilters[4];
+extern bool book_search_filters[4];
 extern int page_number;
 extern int page_size;
 extern int book_cursor_pos;
-extern book* books[];
+extern book** books;
 
 void print_book_info() {
     book* selected_book;
@@ -63,10 +63,10 @@ void books_page_up() {
 void print_filters() {
     wclear(win_filters);
     wprintw(win_filters, "filter by %s title (F4), %s author (F5), %s annotation (F6), %s tags (F7)",
-            bookSearchFilters[SEARCH_IN_TITLE] ? "[X]" : "[]",
-            bookSearchFilters[SEARCH_IN_AUTHOR] ? "[X]" : "[]",
-            bookSearchFilters[SEARCH_IN_ANNOTATION] ? "[X]" : "[]",
-            bookSearchFilters[SEARCH_IN_TAGS] ? "[X]" : "[]"
+            book_search_filters[SEARCH_IN_TITLE] ? "[X]" : "[]",
+            book_search_filters[SEARCH_IN_AUTHOR] ? "[X]" : "[]",
+            book_search_filters[SEARCH_IN_ANNOTATION] ? "[X]" : "[]",
+            book_search_filters[SEARCH_IN_TAGS] ? "[X]" : "[]"
     );
     wrefresh(win_filters);
 }
