@@ -219,6 +219,7 @@ void process_input(int ch) {
                             free(search_res_books[i]);
                         }
                     }
+                    get_all_books(client_socket, books);
                 }
                 else {
                     for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {

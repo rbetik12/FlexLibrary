@@ -112,7 +112,7 @@ void server_tick(int command, int socket_num) {
             read(client_sockets[socket_num], &book, sizeof(book));
             printf("Updating book\n");
             for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
-                if (books[i]->book_id == book.book_id) {
+                if (books[i] && books[i]->book_id == book.book_id) {
                     if (books[i]) {
                         memcpy(books[i], &book, sizeof(book));
                     }
