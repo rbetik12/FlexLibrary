@@ -14,15 +14,87 @@
 
 int opt;
 int free_socket_num = 0;
+int free_update_socket_num = 0;
 int client_sockets[MAX_NETWORK_CLIENTS_AMOUNT] = {0};
+int client_update_sockets[MAX_NETWORK_CLIENTS_AMOUNT] = {0};
 struct sockaddr_in address;
-pthread_t acceptThread;
+pthread_t accept_pthread;
+pthread_t accept_update_pthread;
 bool shutdown_server = false;
 book* books[MAX_BOOKS_AMOUNT];
 
 typedef struct {
     int server_fd;
+    int server_update_fd;
 } accept_thread_args;
+
+void* accept_update_thread(void* args) {
+    int addr_len = sizeof(address);
+    int socket_fd = 0;
+    accept_thread_args * _args = args;
+    while (!shutdown_server) {
+        if ((client_update_sockets[free_update_socket_num] = accept(_args->server_update_fd, (struct sockaddr*) &address,
+                                                        (socklen_t*) &addr_len)) < 0) {
+            perror("accept");
+        }
+        if (free_update_socket_num == MAX_NETWORK_CLIENTS_AMOUNT - 1) {
+            perror("max client exceeded");
+        }
+        else {
+            free_update_socket_num += 1;
+            printf("Accepted client update\n");
+        }
+    }
+    free(_args);
+    return NULL;
+}
+
+int create_accept_update_thread(int server_update_fd) {
+    accept_thread_args* args = malloc(sizeof(accept_thread_args));
+    args->server_update_fd = server_update_fd;
+
+    if (pthread_create(&accept_update_pthread, NULL, accept_update_thread, (void*) args)) {
+        perror("Can't create accept server thread");
+        return -1;
+    }
+    return 0;
+}
+
+int init_update_server(short port) {
+    int server_update_fd = 0;
+    int flags;
+
+    if ((server_update_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+        perror("Can't create server socket!");
+        return -1;
+    }
+
+    if (setsockopt(server_update_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+        perror("setsockopt");
+        return -1;
+    }
+
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(port);
+
+    if (bind(server_update_fd, (struct sockaddr*) &address, sizeof(address)) < 0) {
+        perror("bind failed");
+        return -1;
+    }
+
+    if (listen(server_update_fd, MAX_NETWORK_CLIENTS_AMOUNT) < 0) {
+        perror("listen");
+        return -1;
+    }
+
+    if (create_accept_update_thread(server_update_fd)) {
+        perror("accept thread");
+        return -1;
+    }
+
+    return server_update_fd;
+};
 
 void* accept_thread(void* _args) {
     int addr_len = sizeof(address);
@@ -49,7 +121,7 @@ int create_accept_thread(int server_fd) {
     accept_thread_args* args = malloc(sizeof(accept_thread_args));
     args->server_fd = server_fd;
 
-    if (pthread_create(&acceptThread, NULL, accept_thread, (void*) args)) {
+    if (pthread_create(&accept_pthread, NULL, accept_thread, (void*) args)) {
         perror("Can't create accept server thread");
         return -1;
     }
@@ -116,6 +188,12 @@ void server_tick(int command, int socket_num) {
                     if (books[i]) {
                         memcpy(books[i], &book, sizeof(book));
                     }
+                }
+            }
+
+            for (int i = 0; i < MAX_NETWORK_CLIENTS_AMOUNT; i++) {
+                if (i != socket_num && client_update_sockets[i] > 0) {
+                    send(client_update_sockets[i], &book, sizeof(book), 0);
                 }
             }
             break;

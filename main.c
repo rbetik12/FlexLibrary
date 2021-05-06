@@ -28,8 +28,12 @@ int page_number = 0;
 int page_size = 0;
 int book_cursor_pos = 0;
 int client_socket = 0;
+int client_update_socket = 0;
 int server_fd = 0;
+int server_update_fd = 0;
 int client_books_amount[MAX_BOOKS_AMOUNT] = {0};
+int client_update_socket;
+pthread_t client_update_thread;
 book **books;
 book *search_res_books[MAX_BOOKS_AMOUNT];
 book **tmp_book_ptr;
@@ -38,6 +42,8 @@ bool book_search_filters[4] = {false, false, false, false};
 bool is_open_edit_form = false;
 bool is_open_book_create = false;
 bool running = true;
+bool update_req = false;
+bool is_search_active = false;
 
 typedef enum {
     SERVER,
@@ -220,8 +226,9 @@ void process_input(int ch) {
                         }
                     }
                     get_all_books(client_socket, books);
-                }
-                else {
+                    is_search_active = false;
+                } else {
+                    is_search_active = true;
                     for (int i = 0; i < MAX_BOOKS_AMOUNT; i++) {
                         if (books[i] && contains(*books[i], field_buffer_value)) {
                             search_res_books[search_res_index] = calloc(1, sizeof(book));
@@ -234,6 +241,9 @@ void process_input(int ch) {
                 }
                 print_book_list_page();
                 print_book_info();
+//                if (is_search_active) {
+//                    raise(SIGSEGV);
+//                }
             }
             break;
 
@@ -434,16 +444,27 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[1], "--client") == 0) {
         run_mode = CLIENT;
         client_socket = connect_to_server(port);
+        client_update_socket = connect_to_update_server(port + 1);
         if (client_socket <= 0) {
             puts("Can't connect to server!\n");
             exit(EXIT_FAILURE);
         }
 
+        if (client_update_socket <= 0) {
+            puts("Can't connect to update server!\n");
+            exit(EXIT_FAILURE);
+        }
     } else if (strcmp(argv[1], "--server") == 0) {
         run_mode = SERVER;
         server_fd = init_server(port);
+        server_update_fd = init_update_server(port + 1);
         if (server_fd <= 0) {
             puts("Can't start server!\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (server_update_fd <= 0) {
+            puts("Can't start update server!\n");
             exit(EXIT_FAILURE);
         }
         start_server(server_fd);
@@ -453,6 +474,8 @@ int main(int argc, char *argv[]) {
         books = calloc(MAX_BOOKS_AMOUNT, sizeof(book *));
         init_books(books);
         get_all_books(client_socket, books);
+        create_accept_client_thread(&client_update_thread, client_update_socket, books, search_res_books,
+                                    &is_search_active, &update_req);
         init_ncurses();
         win_book_list_border = newwin(LINES - 2, COLS / 3, 1, 0);
         win_book_info_border = newwin(LINES - 2, COLS * 2 / 3, 1, COLS / 3);
